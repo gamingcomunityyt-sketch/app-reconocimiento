@@ -1,0 +1,8 @@
+# No fijar server.address ni server.port aqui: Streamlit Community Cloud asigna
+# los suyos y una config rigida rompe el despliegue. Para la red local se pasan
+# por linea de comandos (ver instrucciones de ejecucion).
+[server]
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false

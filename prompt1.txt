@@ -1,0 +1,314 @@
+Quiero que analices este proyecto completo antes de modificar nada.
+
+Actualmente la aplicación está construida principalmente en Python y queremos migrar la parte de producto e interfaz a una arquitectura moderna basada en **Next.js + TypeScript**, manteniendo Python únicamente si existe una justificación técnica real para el reconocimiento visual.
+
+## Contexto del producto
+
+La aplicación permite vincular **recuerdos digitales a objetos físicos**.
+
+Un usuario puede:
+
+1. Crear una cuenta.
+2. Crear un recuerdo.
+3. Añadir fotografías, vídeos, audios, texto, fecha y ubicación opcional.
+4. Registrar un objeto físico mediante una o varias fotografías.
+5. Más adelante abrir una cámara de escaneo.
+6. Apuntar al objeto.
+7. El sistema reconoce cuál de los objetos previamente registrados es.
+8. Abre automáticamente el recuerdo digital asociado.
+9. Los recuerdos pueden compartirse con otros usuarios mediante permisos.
+10. Un objeto solo debe buscar coincidencias dentro de los objetos pertenecientes al usuario o compartidos con él.
+
+NO estamos intentando construir un Google Lens capaz de identificar cualquier objeto del mundo.
+
+El problema es mucho más concreto:
+
+> Dada una imagen capturada ahora, determinar cuál de los objetos previamente registrados y accesibles para este usuario es el candidato más parecido.
+
+El reconocimiento visual sirve para navegar hasta el recuerdo. **Nunca debe utilizarse como sistema de autenticación o contraseña.**
+
+## Primera tarea: auditar el proyecto actual
+
+Antes de escribir código:
+
+* Inspecciona toda la estructura actual del repositorio.
+* Identifica qué partes están implementadas en Python.
+* Identifica qué librerías se utilizan.
+* Identifica qué código corresponde a:
+
+  * interfaz;
+  * backend;
+  * almacenamiento;
+  * reconocimiento de imágenes;
+  * OpenCV;
+  * modelos de machine learning;
+  * procesamiento de imágenes;
+  * base de datos;
+  * autenticación;
+  * archivos;
+  * APIs.
+
+No migres código sin entender primero qué hace.
+
+Crea un documento `MIGRATION_PLAN.md` explicando:
+
+* arquitectura actual;
+* problemas encontrados;
+* qué debe migrarse a Next.js;
+* qué puede eliminarse;
+* qué puede reutilizarse;
+* qué debe permanecer temporalmente en Python;
+* arquitectura final propuesta;
+* fases concretas de migración.
+
+## Arquitectura objetivo
+
+Quiero utilizar:
+
+* Next.js actual con App Router
+* TypeScript
+* React
+* Tailwind CSS
+* componentes reutilizables
+* arquitectura limpia y mantenible
+* ESLint
+* variables de entorno correctamente gestionadas
+* API/server actions cuando tenga sentido
+* Supabase como opción preferente para:
+
+  * Auth
+  * PostgreSQL
+  * Storage
+  * Row Level Security
+* pgvector si finalmente utilizamos embeddings almacenados en backend
+
+No introduzcas dependencias innecesarias.
+
+## MUY IMPORTANTE: reconocimiento visual
+
+Analiza específicamente el sistema de reconocimiento existente.
+
+No asumas que Python debe eliminarse.
+
+Determina qué estrategia utiliza actualmente y evalúa cuál de estas arquitecturas es más adecuada:
+
+### Opción A — Todo en Next.js / TypeScript
+
+Utilizar JavaScript/TypeScript si el reconocimiento actual puede implementarse de forma robusta mediante:
+
+* ONNX Runtime
+* TensorFlow.js
+* APIs adecuadas
+* procesamiento compatible con Node
+* inferencia en navegador
+* WebAssembly/WebGPU
+
+### Opción B — Next.js + microservicio Python
+
+Si Python ofrece una ventaja clara para OpenCV, PyTorch, transformers, embeddings u otras herramientas de visión artificial:
+
+Mantén el reconocimiento como un servicio independiente y pequeño.
+
+Ejemplo conceptual:
+
+Next.js
+→ envía imagen/frame
+→ API Python
+→ procesa imagen
+→ genera descriptor/embedding
+→ compara candidatos autorizados
+→ devuelve:
+
+```ts
+{
+  status: "match" | "ambiguous" | "no_match",
+  objectId?: string,
+  confidence?: number,
+  alternatives?: []
+}
+```
+
+El frontend nunca debe conocer detalles internos innecesarios del modelo.
+
+Python debe quedar aislado detrás de una API clara.
+
+Puedes utilizar FastAPI si es apropiado.
+
+### Opción C — Arquitectura híbrida
+
+Si tiene sentido:
+
+* preprocesado en cliente;
+* inferencia local;
+* búsqueda vectorial en backend;
+* Python solamente para entrenamiento/testing/PoC.
+
+Elige la solución según el código que YA existe y las necesidades reales.
+
+No conserves Python simplemente porque ya exista.
+
+Pero tampoco reescribas funcionalidad de visión artificial estable en JavaScript sin una razón técnica.
+
+## Flujo de reconocimiento deseado
+
+Registro:
+
+```text
+Usuario
+→ Crear recuerdo
+→ Vincular objeto
+→ Capturar 1-4 imágenes
+→ procesar referencias
+→ generar características / embeddings
+→ guardar referencias
+→ asociarlas al object_id
+```
+
+Escaneo:
+
+```text
+Usuario
+→ Scan
+→ cámara
+→ obtener frame adecuado
+→ procesar imagen
+→ generar representación visual
+→ buscar SOLO dentro de objetos autorizados
+→ calcular similitud
+→ MATCH / AMBIGUOUS / NO MATCH
+```
+
+Resultado:
+
+### MATCH
+
+Abrir recuerdo directamente.
+
+### AMBIGUOUS
+
+Mostrar 2-3 candidatos.
+
+### NO MATCH
+
+Informar de que no se reconoce el objeto y permitir repetir el escaneo.
+
+## Privacidad y seguridad
+
+La arquitectura debe asumir desde el principio:
+
+* recuerdos privados por defecto;
+* autenticación obligatoria para contenido privado;
+* owner/editor/viewer;
+* RLS si utilizamos Supabase;
+* Storage protegido;
+* URLs firmadas cuando proceda;
+* nunca confiar en datos enviados desde el cliente para decidir permisos;
+* filtrar objetos autorizados ANTES de devolver resultados;
+* no guardar secretos en frontend;
+* validar uploads;
+* limitar tamaño/tipo de archivos;
+* no utilizar reconocimiento facial.
+
+## Modelo conceptual mínimo
+
+Considera como mínimo:
+
+```text
+users
+memories
+memory_members
+objects
+object_references
+media
+share_links
+scan_events
+```
+
+Con relaciones aproximadamente:
+
+```text
+user
+ └── memories
+      ├── media
+      ├── members
+      └── objects
+           └── object_references
+```
+
+## Migración
+
+NO quiero un big-bang rewrite.
+
+Hazlo incrementalmente.
+
+Orden recomendado:
+
+1. Auditar código.
+2. Crear `MIGRATION_PLAN.md`.
+3. Crear nueva aplicación Next.js.
+4. Definir estructura y tipos TypeScript.
+5. Migrar autenticación.
+6. Migrar modelo de datos.
+7. Migrar biblioteca de recuerdos.
+8. Migrar creación de recuerdos.
+9. Migrar subida de contenido.
+10. Implementar registro de objetos.
+11. Crear interfaz Scan.
+12. Integrar reconocimiento existente.
+13. Verificar resultados.
+14. Eliminar código legacy únicamente cuando haya sustituto funcional.
+15. Añadir tests.
+
+En cada fase:
+
+* realiza cambios pequeños;
+* mantén el proyecto ejecutable;
+* evita duplicación;
+* elimina código muerto;
+* documenta decisiones importantes.
+
+## Compatibilidad móvil
+
+La interfaz debe diseñarse **mobile-first**.
+
+El flujo principal se utilizará principalmente desde teléfono.
+
+Evalúa además si conviene configurar la aplicación como:
+
+* PWA;
+
+y deja la arquitectura preparada para que posteriormente pueda:
+
+* mantenerse como PWA;
+* envolverse mediante Capacitor;
+* o compartir backend con una futura aplicación React Native/Expo.
+
+No fuerces ahora una solución móvil nativa si no es necesaria.
+
+## Primera respuesta que quiero de ti
+
+NO empieces modificando 40 archivos.
+
+Primero responde con:
+
+1. Resumen de cómo funciona actualmente el proyecto.
+2. Tecnologías encontradas.
+3. Qué hace exactamente Python.
+4. Qué hace actualmente el reconocimiento visual.
+5. Qué conservarías.
+6. Qué eliminarías.
+7. Qué migrarías a Next.js.
+8. Si mantendrías o no Python y por qué.
+9. Arquitectura final propuesta.
+10. Riesgos de la migración.
+11. Orden exacto de implementación.
+
+Después crea `MIGRATION_PLAN.md`.
+
+Una vez definido el plan, empieza la migración por fases sin intentar reconstruir toda la aplicación de una sola vez.
+
+La prioridad es:
+
+**funcionalidad estable → arquitectura clara → seguridad → experiencia de usuario → optimización.**
+
+No cambies tecnología simplemente por moda. Cada decisión debe tener una razón técnica concreta.
