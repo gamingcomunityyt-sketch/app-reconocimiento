@@ -307,21 +307,22 @@ export async function createCloudMemory(input: {
   if (!user) return { error: "Debes iniciar sesion." };
 
   const supabase = await createClient();
-  const { data: memory, error: memoryError } = await supabase
-    .from("memories")
-    .insert({
-      owner_id: user.id,
-      title: input.title,
-      description: input.description,
-      happened_at: input.happenedAt,
-      location: input.location,
-      visibility: "private",
-    })
-    .select("id")
-    .single();
+  // Generamos el id en el servidor para NO usar `.select()` tras el insert:
+  // el RETURNING aplicaria la politica de SELECT (que exige membresia, aun
+  // inexistente) y Postgres lanzaria "new row violates row-level security".
+  const memory = { id: crypto.randomUUID() };
+  const { error: memoryError } = await supabase.from("memories").insert({
+    id: memory.id,
+    owner_id: user.id,
+    title: input.title,
+    description: input.description,
+    happened_at: input.happenedAt,
+    location: input.location,
+    visibility: "private",
+  });
 
-  if (memoryError || !memory) {
-    return { error: memoryError?.message ?? "No se pudo crear el recuerdo." };
+  if (memoryError) {
+    return { error: memoryError.message ?? "No se pudo crear el recuerdo." };
   }
 
   const { error: memberError } = await supabase.from("memory_members").insert({
@@ -389,14 +390,13 @@ export async function createCloudMemory(input: {
   const { error: mediaError } = await supabase.from("media").insert(mediaInserts);
   if (mediaError) return { error: mediaError.message };
 
-  const { data: objectRow, error: objectError } = await supabase
+  const objectRow = { id: crypto.randomUUID() };
+  const { error: objectError } = await supabase
     .from("objects")
-    .insert({ memory_id: memory.id, label: input.objectLabel })
-    .select("id")
-    .single();
+    .insert({ id: objectRow.id, memory_id: memory.id, label: input.objectLabel });
 
-  if (objectError || !objectRow) {
-    return { error: objectError?.message ?? "No se pudo vincular el objeto." };
+  if (objectError) {
+    return { error: objectError.message ?? "No se pudo vincular el objeto." };
   }
 
   const objectPath = await upload(input.objectBlob, `object-0.jpg`);

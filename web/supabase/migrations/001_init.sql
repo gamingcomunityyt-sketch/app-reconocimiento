@@ -205,7 +205,7 @@ create policy "profiles_update_own"
 drop policy if exists "memories_select_member" on public.memories;
 create policy "memories_select_member"
   on public.memories for select to authenticated
-  using (public.is_memory_member(id));
+  using (owner_id = auth.uid() or public.is_memory_member(id));
 
 drop policy if exists "memories_insert_own" on public.memories;
 create policy "memories_insert_own"
