@@ -8,3 +8,15 @@ env/
 *.log
 .DS_Store
 Thumbs.db
+
+# Dependencias y builds (no subir nunca a GitHub)
+web/node_modules/
+web/.next/
+recognition/.venv/
+
+# Secretos y despliegue local
+web/.env*.local
+web/.vercel
+
+# Artefactos generados localmente
+recuerdos-recognition-github.zip

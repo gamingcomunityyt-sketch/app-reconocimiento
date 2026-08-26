@@ -1,0 +1,770 @@
+Quiero hacer un rediseño prácticamente completo de la interfaz de esta aplicación.
+
+Puedes reutilizar funcionalidades existentes, componentes útiles y lógica que esté bien implementada, pero NO debes sentirte obligado a conservar el diseño visual, layouts o navegación actuales.
+
+El objetivo es convertirla en una aplicación que parezca un producto comercial moderno, extremadamente limpio, sencillo, emocional y agradable de utilizar.
+
+Contexto del producto
+
+Esta aplicación permite asociar recuerdos digitales a objetos físicos.
+
+La experiencia diferencial es:
+
+Un objeto físico actúa como puerta de entrada a los recuerdos relacionados con él.
+
+Por ejemplo:
+
+un imán de un viaje → abre fotos y vídeos del viaje;
+una entrada de concierto → abre recuerdos del concierto;
+un reloj heredado → abre fotografías, historias y audios familiares;
+un dibujo de un hijo → abre recuerdos de esa etapa;
+un regalo → abre un mensaje, vídeo o álbum;
+una fotografía física → abre más contenido relacionado.
+
+El diseño debe transmitir:
+
+recuerdos;
+intimidad;
+nostalgia;
+fotografía;
+objetos personales;
+descubrimiento;
+conexión entre lo físico y lo digital.
+
+Pero evitando una estética cursi, infantil o excesivamente sentimental.
+
+Debe sentirse como una combinación entre:
+
+una aplicación moderna de fotografía;
+una biblioteca personal;
+un producto Apple-like en simplicidad;
+una experiencia de cámara muy fluida.
+Objetivo principal de UX
+
+La aplicación tiene que ser entendible prácticamente sin tutorial.
+
+Los tres conceptos más importantes deben resultar evidentes:
+
+Memories
+
+Mis recuerdos.
+
+Scan
+
+Apuntar a un objeto para abrir el recuerdo asociado.
+
+Create
+
+Crear un nuevo recuerdo y, opcionalmente, vincularle un objeto físico.
+
+El usuario debe poder llegar a cualquiera de estas funciones con muy pocos toques.
+
+Mobile-first
+
+Diseña primero para teléfono.
+
+Posteriormente adapta correctamente:
+
+tablet;
+escritorio;
+PWA.
+
+No diseñes una web de escritorio encogida para móvil.
+
+La interfaz móvil es la principal.
+
+Navegación principal
+
+Quiero una navegación extremadamente sencilla.
+
+Propón y construye una navegación similar a:
+
+Memories     Scan     Profile
+
+Donde Scan tenga prioridad visual.
+
+Puede utilizar:
+
+botón central destacado;
+navegación inferior;
+gesto/transición hacia cámara;
+
+si mejora la UX.
+
+No añadas diez secciones principales.
+
+Funciones secundarias deben vivir dentro de contextos donde tengan sentido.
+
+Home / Memories
+
+La pantalla principal debe mostrar la biblioteca personal del usuario.
+
+Quiero una experiencia muy visual.
+
+Considera:
+
+grid de recuerdos;
+cards grandes;
+fotografías como protagonistas;
+títulos discretos;
+fecha;
+ubicación opcional;
+pequeños indicadores de contenido compartido;
+objetos vinculados;
+búsqueda;
+filtros solo si son necesarios.
+
+Evita dashboards empresariales.
+
+Esto NO es una herramienta SaaS corporativa.
+
+Debe parecer una biblioteca personal de recuerdos.
+
+Estados
+
+Diseña correctamente:
+
+biblioteca con muchos recuerdos;
+biblioteca con pocos recuerdos;
+usuario nuevo sin recuerdos;
+loading;
+error;
+offline;
+skeleton states.
+
+El empty state debe explicar visualmente el concepto sin meter un muro de texto.
+
+Memory Detail
+
+Al abrir un recuerdo quiero una pantalla muy inmersiva.
+
+Puede contener:
+
+hero image;
+título;
+fecha;
+ubicación;
+descripción;
+fotografías;
+vídeos;
+audios;
+textos;
+personas con acceso;
+objetos vinculados.
+
+El contenido multimedia debe ser el protagonista.
+
+La interfaz debe desaparecer todo lo posible mientras el usuario consume el recuerdo.
+
+Considera una presentación cronológica o narrativa si mejora la experiencia.
+
+Crear recuerdo
+
+El flujo de creación debe ser extremadamente rápido.
+
+No quiero un formulario enorme.
+
+Diseña un proceso progresivo.
+
+Por ejemplo:
+
+Nuevo recuerdo
+
+Foto / vídeo principal
+↓
+Título
+↓
+Añadir contenido
+↓
+Vincular objeto [opcional]
+↓
+Guardar
+
+Datos secundarios como:
+
+fecha;
+ubicación;
+descripción;
+colaboradores;
+
+pueden añadirse mediante progressive disclosure.
+
+Nunca obligues al usuario a rellenar campos innecesarios.
+
+Debe poder crear un recuerdo básico en segundos.
+
+Vincular objeto físico
+
+Esta función es esencial.
+
+La interfaz debe explicar de manera visual:
+
+Este objeto podrá utilizarse posteriormente para volver a abrir este recuerdo.
+
+Flujo:
+
+Vincular objeto
+↓
+Abrir cámara
+↓
+encuadrar objeto
+↓
+captura automática o asistida
+↓
+pedir otra vista si es necesario
+↓
+confirmación
+
+Para objetos 3D:
+
+puede solicitar:
+
+frontal;
+ligeramente izquierda;
+ligeramente derecha;
+
+pero no convertir el proceso en un escaneo 3D complicado.
+
+Para fotografías, entradas o dibujos:
+
+una sola captura puede ser suficiente.
+
+Scan
+
+Esta debe ser probablemente la experiencia más cuidada de toda la aplicación.
+
+Al pulsar Scan:
+
+la cámara debería aparecer prácticamente inmediatamente.
+
+No quiero:
+
+botón
+→ formulario
+→ seleccionar cámara
+→ hacer foto
+→ confirmar foto
+→ enviar
+→ loading
+
+Quiero algo parecido a:
+
+Scan
+→ cámara
+→ apuntar
+→ detectar
+→ reconocer
+→ abrir recuerdo
+
+La interfaz de cámara debe ser minimalista.
+
+Puede incluir:
+
+área de detección sutil;
+animación muy ligera;
+feedback de que está analizando;
+indicación cuando encuentra un candidato;
+vibración/haptic feedback en móvil si está disponible;
+transición visual del objeto reconocido hacia el recuerdo.
+
+Evita overlays enormes.
+
+Animaciones
+
+Quiero animaciones modernas y sutiles.
+
+Puedes utilizar Framer Motion / Motion si tiene sentido.
+
+Quiero animar:
+
+navegación;
+apertura de cards;
+aparición de recuerdos;
+transiciones de Scan;
+reconocimiento exitoso;
+bottom sheets;
+modales;
+menús;
+carga de contenido.
+
+Las animaciones deben sentirse:
+
+rápidas;
+naturales;
+fluidas;
+premium.
+
+NO quiero:
+
+animaciones decorativas constantes;
+elementos flotando sin motivo;
+delays molestos;
+animaciones de 1 segundo para acciones normales.
+
+Utiliza aproximadamente movimientos de 150–300 ms en interacciones comunes salvo que una transición concreta necesite otra duración.
+
+Respeta prefers-reduced-motion.
+
+Reconocimiento exitoso
+
+Cuando el sistema reconoce un objeto quiero una transición satisfactoria.
+
+Por ejemplo:
+
+objeto detectado
+↓
+feedback visual corto
+↓
+miniatura/nombre del recuerdo
+↓
+transición
+↓
+Memory Detail
+
+No utilices un popup genérico:
+
+Success! Object recognized.
+
+Debe sentirse integrado en la experiencia.
+
+Resultado ambiguo
+
+Si existen dos o tres objetos posibles:
+
+mostrar visualmente:
+
+¿Es uno de estos?
+
+con cards/fotografías.
+
+El usuario selecciona uno.
+
+Nada de mostrar puntuaciones técnicas como:
+
+Similarity: 0.783491
+
+Eso pertenece al sistema, no al usuario.
+
+No reconocido
+
+Si no encuentra coincidencia:
+
+mensaje breve y útil.
+
+Por ejemplo:
+
+No hemos reconocido este objeto.
+
+Prueba acercándote un poco o cambiando el ángulo.
+
+Permitir:
+
+volver a intentar;
+elegir manualmente;
+registrar este objeto si procede.
+Compartir
+
+Los recuerdos pueden ser:
+
+privados;
+compartidos.
+
+Roles:
+
+owner;
+editor;
+viewer.
+
+No conviertas permisos en una interfaz empresarial.
+
+Utiliza una UX parecida a compartir un álbum/foto/documento moderno.
+
+Por ejemplo:
+
+Compartir recuerdo
+
+Marta
+Puede editar
+
+Carlos
+Puede ver
+
++ Invitar persona
+Perfil / configuración
+
+Mantenerlo sencillo:
+
+cuenta;
+almacenamiento;
+privacidad;
+recuerdos compartidos;
+dispositivos/sesiones si procede;
+preferencias;
+ayuda;
+logout.
+
+No saturarlo.
+
+Sistema visual
+
+Construye un sistema de diseño consistente.
+
+Define:
+
+typography;
+spacing;
+border radius;
+shadows;
+elevation;
+surfaces;
+states;
+iconography;
+motion;
+breakpoints.
+
+Utiliza variables/tokens, no valores aleatorios por componente.
+
+Componentes
+
+Crea componentes reutilizables cuando tenga sentido.
+
+Ejemplos:
+
+MemoryCard
+MemoryGrid
+MediaGallery
+ScanCamera
+RecognitionOverlay
+ObjectCard
+MemberAvatar
+ShareSheet
+EmptyState
+MediaUploader
+BottomSheet
+AppNavigation
+PageTransition
+SkeletonCard
+
+Evita sobreingeniería.
+
+Iconos
+
+Usa un único sistema coherente, por ejemplo Lucide.
+
+NO mezcles:
+
+emojis;
+iconos SVG aleatorios;
+Font Awesome;
+Lucide;
+imágenes;
+
+para representar acciones equivalentes.
+
+Tipografía
+
+Utiliza una tipografía moderna, extremadamente legible y discreta.
+
+Prioriza jerarquía mediante:
+
+tamaño;
+peso;
+espacio;
+contraste;
+
+en lugar de utilizar veinte colores diferentes.
+
+Colores
+
+Quiero una estética limpia y premium.
+
+No llenes la interfaz de colores.
+
+La fotografía y los recuerdos deben aportar gran parte del color.
+
+La UI debe utilizar principalmente:
+
+superficies neutras;
+contraste excelente;
+un accent color reconocible;
+estados semánticos.
+
+Debe funcionar perfectamente en:
+
+light mode;
+dark mode.
+Glassmorphism
+
+Puede utilizarse MUY moderadamente en:
+
+cámara;
+navegación flotante;
+overlays;
+
+pero NO quiero una aplicación entera llena de cristales transparentes.
+
+Accesibilidad
+
+Implementa correctamente:
+
+WCAG razonable;
+contraste;
+keyboard navigation;
+focus states;
+aria labels;
+targets táctiles suficientes;
+reduced motion;
+soporte de tamaños pequeños de pantalla.
+Rendimiento
+
+La interfaz debe sentirse rápida incluso con muchos recuerdos.
+
+Utiliza correctamente:
+
+Next/Image;
+lazy loading;
+thumbnails;
+skeletons;
+carga progresiva;
+virtualization si posteriormente fuera necesaria;
+caching cuando proceda.
+
+No cargues vídeos completos en un grid.
+
+UX de uploads
+
+Mientras se sube contenido:
+
+mostrar progreso.
+
+Permitir continuar utilizando la aplicación cuando técnicamente sea posible.
+
+Estados claros:
+
+preparing
+uploading
+processing
+ready
+error
+
+No bloquear toda la interfaz con un spinner gigante.
+
+Microinteracciones
+
+Añade detalles útiles:
+
+haptic feedback cuando sea posible;
+estados pressed;
+hover en desktop;
+drag/drop en desktop para multimedia;
+swipe cuando sea natural en móvil;
+feedback inmediato después de acciones;
+optimistic UI cuando sea seguro.
+No quiero
+
+Evita específicamente:
+
+dashboards SaaS;
+sidebar enorme en móvil;
+tablas innecesarias;
+gradientes por todas partes;
+tarjetas dentro de tarjetas dentro de tarjetas;
+bordes alrededor de absolutamente todo;
+texto explicando cosas que la UI podría comunicar visualmente;
+diez botones diferentes por pantalla;
+formularios interminables;
+modales para cada pequeña acción;
+iconos inconsistentes;
+animaciones exageradas;
+diseño genérico de plantilla de Tailwind.
+Revisa la aplicación existente
+
+Antes de modificarla:
+
+inspecciona todas las páginas;
+inspecciona todos los componentes;
+identifica las funcionalidades existentes;
+identifica qué merece conservarse;
+identifica problemas de navegación;
+identifica inconsistencias;
+identifica funcionalidades duplicadas;
+identifica elementos que puedan simplificarse.
+
+Después crea:
+
+UI_REDESIGN_PLAN.md
+
+con:
+
+arquitectura actual de pantallas;
+nueva arquitectura;
+navegación;
+sistema de diseño;
+componentes;
+flujos;
+animaciones;
+páginas a reconstruir;
+orden de implementación.
+Después ejecuta el rediseño
+
+No quiero solamente recomendaciones.
+
+Después del análisis:
+
+implementa el rediseño.
+
+Hazlo pantalla por pantalla y componente por componente.
+
+Mantén siempre la aplicación ejecutable.
+
+Después de cada bloque importante:
+
+comprueba TypeScript;
+comprueba lint;
+comprueba errores;
+verifica responsive;
+elimina código legacy sustituido.
+Libertad de diseño
+
+Tienes permiso explícito para:
+
+rehacer layouts completos;
+sustituir navegación;
+eliminar componentes visuales antiguos;
+reorganizar información;
+cambiar jerarquía;
+introducir componentes nuevos;
+introducir animaciones;
+simplificar flujos;
+rediseñar completamente las pantallas.
+
+Siempre que mantengas la funcionalidad fundamental.
+
+Prioridad
+
+Orden de prioridades:
+
+Facilidad de uso.
+Scan extremadamente rápido.
+Creación de recuerdos sencilla.
+Multimedia como protagonista.
+Diseño limpio.
+Sensación premium.
+Animaciones fluidas.
+Responsive.
+Accesibilidad.
+Consistencia visual.
+
+La pregunta que debes hacerte constantemente es:
+
+¿Podría una persona usar esta web sin saber nada del proyecto y entender en menos de un minuto cómo crear un recuerdo y cómo volver a abrirlo apuntando a un objeto?
+
+Muy importante: nuestro nivel técnico y cómo debes comunicarte
+
+Ten en cuenta que no tenemos conocimientos de programación suficientes para tomar decisiones técnicas de arquitectura, frameworks, librerías o implementación.
+
+Por tanto, no debes trasladarnos decisiones técnicas que razonablemente puedas tomar tú.
+
+Por ejemplo, evita preguntas como:
+
+“¿Prefieres REST o GraphQL?”
+“¿Quieres usar Zustand, Redux o Context?”
+“¿Qué ORM prefieres?”
+“¿Quieres mantener este servicio en Python o migrarlo?”
+“¿Qué patrón de arquitectura quieres utilizar?”
+“¿Qué librería de autenticación prefieres?”
+
+Si existe una opción claramente más adecuada para este producto, elige tú la que consideres mejor, explica brevemente por qué y continúa.
+
+Solo debes preguntarnos cuando la decisión dependa realmente de:
+
+cómo queremos que funcione el producto;
+qué experiencia queremos ofrecer al usuario;
+qué funciones queremos incluir;
+qué información debe mostrarse;
+cómo debería comportarse una determinada pantalla;
+prioridades de negocio;
+costes que estemos dispuestos a asumir;
+privacidad;
+monetización;
+público objetivo;
+funcionalidades futuras.
+
+Cuando necesites preguntarnos algo técnico porque tenga consecuencias importantes para el producto, tradúcelo primero a términos de negocio o experiencia de usuario.
+
+Por ejemplo, en lugar de:
+
+“¿Quieres reconocimiento on-device o server-side?”
+
+pregunta:
+
+“¿Qué prefieres priorizar: que el reconocimiento pueda funcionar sin conexión y sea más privado, aunque requiera más trabajo de desarrollo, o una primera versión más sencilla donde el procesamiento pueda realizarse en servidor?”
+
+Y después recomienda cuál consideras más apropiada.
+
+Regla general
+
+Para cada decisión:
+
+Si es una decisión puramente técnica
+
+Tómala tú siguiendo buenas prácticas y las necesidades de este proyecto.
+
+Si tiene consecuencias de producto
+
+Explícanos:
+
+qué cambia para el usuario;
+ventajas;
+inconvenientes;
+coste o complejidad aproximada si es relevante;
+qué opción recomiendas y por qué.
+
+Después haznos una pregunta sencilla orientada al producto únicamente si realmente necesitamos decidir nosotros.
+
+Si no tenemos información suficiente pero existe una opción razonable
+
+No bloquees el desarrollo.
+
+Elige una opción conservadora y fácilmente reversible, documenta la decisión y continúa.
+
+Forma de explicarnos las cosas
+
+Cuando expliques cuestiones técnicas:
+
+utiliza lenguaje sencillo;
+evita jerga innecesaria;
+explica las consecuencias prácticas;
+utiliza ejemplos relacionados con esta aplicación;
+no presupongas conocimientos de programación.
+
+Puedes mencionar los nombres técnicos de las tecnologías, pero explica siempre para qué sirven en este producto.
+
+Ejemplo:
+
+“Voy a mantener Python únicamente para reconocimiento visual porque las herramientas que ya utiliza el proyecto funcionan mejor ahí. La aplicación Next.js simplemente enviará la imagen y recibirá qué objeto se ha reconocido. Para vosotros esto no cambia la experiencia de uso y permite evitar rehacer una parte compleja que ya funciona.”
+
+Ese es el nivel de explicación esperado.
+
+Autonomía
+
+Queremos que actúes como el responsable técnico del proyecto, no simplemente como un asistente que nos devuelve todas las decisiones.
+
+Debes:
+
+detectar problemas;
+proponer soluciones;
+elegir tecnologías cuando sea una decisión puramente técnica;
+mantener la arquitectura coherente;
+evitar sobreingeniería;
+avisarnos de riesgos importantes;
+impedir decisiones técnicamente malas aunque inicialmente las pidamos por desconocimiento;
+proponernos alternativas cuando exista una forma claramente mejor de conseguir el mismo objetivo.
+
+Nuestro papel será principalmente decidir:
+
+qué producto queremos construir.
+
+Tu papel será decidir:
+
+cómo construirlo técnicamente de la forma más adecuada.

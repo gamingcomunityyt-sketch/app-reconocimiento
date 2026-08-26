@@ -1,26 +1,321 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ==========================================================================
+   Sistema de diseno
+   Un unico sitio donde viven color, tipografia, radios, sombras y movimiento.
+   Los componentes usan estos tokens y nunca valores sueltos.
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+   Los nombres de :root evitan a proposito los espacios de nombres del tema de
+   Tailwind (--color-*, --radius-*, --shadow-*, --ease-*) para que el bloque
+   @theme inline de mas abajo pueda referenciarlos sin ciclos.
+   ========================================================================== */
+
+:root {
+  /* Superficies neutras y calidas: el color lo aportan las fotografias. */
+  --surface: #fcfbfa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1efec;
+  --surface-inverse: #1a1815;
+  --line: #e5e2dd;
+  --line-strong: #d3cec7;
+
+  --ink: #1a1815;
+  --ink-muted: #6a645c;
+  --ink-subtle: #979087;
+  --ink-inverse: #fcfbfa;
+
+  /* Ambar terroso: calido por el tema del producto, desaturado para no caer
+     en lo cursi. Un solo acento reconocible en toda la aplicacion. */
+  --accent: #b4622f;
+  --accent-hover: #9d5428;
+  --accent-contrast: #ffffff;
+  --accent-ink: #8d4a21;
+  --accent-wash: #f7ede6;
+
+  --danger: #b3261e;
+  --danger-wash: #fbeceb;
+  --success: #1e6e42;
+  --warning: #8a5a00;
+
+  --elevation-card: 0 1px 2px rgb(26 24 21 / 0.04), 0 4px 12px rgb(26 24 21 / 0.05);
+  --elevation-float: 0 2px 8px rgb(26 24 21 / 0.08), 0 12px 32px rgb(26 24 21 / 0.14);
+
+  /* Duraciones de referencia. 150-300 ms en interacciones comunes. */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 400ms;
+
+  /* Transiciones de vista. */
+  --vt-exit: 150ms;
+  --vt-enter: 210ms;
+  --vt-move: 400ms;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Neutro calido, no gris azulado, para que las fotografias no se enfrien. */
+    --surface: #141311;
+    --surface-raised: #1e1c19;
+    --surface-sunken: #0d0c0b;
+    --surface-inverse: #f5f2ee;
+    --line: #2e2b27;
+    --line-strong: #423e39;
+
+    --ink: #f5f2ee;
+    --ink-muted: #a7a099;
+    --ink-subtle: #6e6761;
+    --ink-inverse: #1a1815;
+
+    --accent: #e08a4c;
+    --accent-hover: #ec9a5e;
+    --accent-contrast: #2a1508;
+    --accent-ink: #e8a470;
+    --accent-wash: #2a1e15;
+
+    --danger: #f2b8b5;
+    --danger-wash: #2c1615;
+    --success: #7fd1a0;
+    --warning: #e8c46a;
+
+    --elevation-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px rgb(0 0 0 / 0.24);
+    --elevation-float: 0 2px 8px rgb(0 0 0 / 0.4), 0 12px 32px rgb(0 0 0 / 0.5);
+
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-border: var(--line);
+  --color-border-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --shadow-card: var(--elevation-card);
+  --shadow-float: var(--elevation-float);
+}
+
+@theme {
+  /* Jerarquia por tamano, peso y espacio, no por color. */
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.15rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.0625rem;
+  --text-title--line-height: 1.4rem;
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.125rem;
+
+  /* Controles, tarjetas y hojas inferiores. */
+  --radius-sm: 0.625rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--surface);
+  color: var(--ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  /* La aplicacion es una superficie de una sola pantalla: evita el rebote
+     elastico que delata que es una web y no una app. */
+  overscroll-behavior-y: none;
+}
+
+/* El resaltado azul al tocar delata el navegador; los estados pressed los
+   dibujamos nosotros. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Transiciones de vista
+   Las hace el navegador, sin coste de descarga. Ver UI_REDESIGN_PLAN.md §8.
+   ========================================================================== */
+
+/* Los clics no se pierden mientras una transicion esta en curso. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Morfologia de elemento compartido: la miniatura de la rejilla se convierte
+   en la imagen grande del detalle. El desenfoque intermedio tapa los
+   artefactos de interpolacion. */
+::view-transition-group(.morph) {
+  animation-duration: var(--vt-move);
+}
+::view-transition-image-pair(.morph) {
+  animation-name: via-blur;
+}
+
+@keyframes via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
+/* Relevo entre skeleton y contenido real. La salida es rapida para no competir
+   por la atencion; la entrada, mas suave, espera a que la anterior termine. */
+::view-transition-old(.slide-down) {
+  animation:
+    var(--vt-exit) ease-out both vt-fade reverse,
+    var(--vt-exit) ease-out both vt-slide-y reverse;
+}
+::view-transition-new(.slide-up) {
+  animation:
+    var(--vt-enter) ease-in var(--vt-exit) both vt-fade,
+    var(--vt-move) ease-in both vt-slide-y;
+}
+
+@keyframes vt-fade {
+  from {
+    filter: blur(3px);
+    opacity: 0;
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+@keyframes vt-slide-y {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Direccion de la navegacion: hacia dentro desliza a la izquierda, volver
+   desliza a la derecha. 60 px basta para comunicar direccion sin obligar a
+   seguir un elemento que cruza la pantalla. */
+::view-transition-old(.nav-forward) {
+  --slide-offset: -60px;
+  animation:
+    var(--vt-exit) ease-in both vt-fade reverse,
+    var(--vt-move) var(--ease-in-out) both vt-slide-x reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 60px;
+  animation:
+    var(--vt-enter) ease-out var(--vt-exit) both vt-fade,
+    var(--vt-move) var(--ease-in-out) both vt-slide-x;
+}
+
+::view-transition-old(.nav-back) {
+  --slide-offset: 60px;
+  animation:
+    var(--vt-exit) ease-in both vt-fade reverse,
+    var(--vt-move) var(--ease-in-out) both vt-slide-x reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -60px;
+  animation:
+    var(--vt-enter) ease-out var(--vt-exit) both vt-fade,
+    var(--vt-move) var(--ease-in-out) both vt-slide-x;
+}
+
+@keyframes vt-slide-x {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+
+/* La navegacion inferior no se mueve durante los deslizamientos: es el punto
+   de referencia fijo del usuario. */
+::view-transition-group(app-nav) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-nav) {
+  display: none;
+}
+::view-transition-new(app-nav) {
+  animation: none;
+}
+
+/* Pulso del overlay de escaneo: el unico movimiento en bucle de la aplicacion,
+   y solo mientras el sistema esta analizando de verdad. */
+@keyframes scan-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+/* ==========================================================================
+   Movimiento reducido
+   Hay personas a las que el movimiento produce mareo. No es opcional.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

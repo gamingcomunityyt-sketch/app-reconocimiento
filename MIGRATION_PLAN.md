@@ -331,6 +331,13 @@ TypeScript 5. Validación de entorno en `web/src/lib/env.ts` (públicas) y
 `web/src/lib/env.server.ts` (secretos, protegido con `server-only`). Tipos del
 dominio en `web/src/types/domain.ts`. Build, lint y arranque verificados.
 
+> **Nota de estado (2026-08-24).** La interfaz de las fases 3, 4, 6 y 7 se ha
+> construido por adelantado contra una capa de datos de ejemplo, para poder
+> juzgar el producto antes de que exista Supabase. Ver `UI_REDESIGN_PLAN.md`.
+> Las fases 1 y 2 siguen pendientes y son el siguiente trabajo: cuando estén,
+> solo hay que sustituir `web/src/lib/data/` por consultas reales, sin tocar
+> ninguna pantalla.
+
 ### Fase 1 — Datos y seguridad
 
 Proyecto de Supabase, migraciones SQL del esquema de §5.2, políticas RLS y

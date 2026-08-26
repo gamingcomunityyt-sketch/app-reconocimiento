@@ -24,3 +24,11 @@ export function serverEnv() {
     ),
   };
 }
+
+/** Configuracion opcional del servicio de reconocimiento (dev sin Python). */
+export function recognitionEnv(): { url: string; token: string } | null {
+  const url = process.env.RECOGNITION_SERVICE_URL?.trim();
+  const token = process.env.RECOGNITION_SERVICE_TOKEN?.trim();
+  if (!url || !token) return null;
+  return { url, token };
+}

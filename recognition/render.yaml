@@ -1,0 +1,14 @@
+# Despliegue del microservicio de reconocimiento en Render.
+# Conecta este directorio (o el repo) como Web Service → Docker.
+
+services:
+  - type: web
+    name: recuerdos-recognition
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: RECOGNITION_SERVICE_TOKEN
+        sync: false

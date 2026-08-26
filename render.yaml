@@ -1,0 +1,16 @@
+# Blueprint de Render: despliega el microservicio Python de reconocimiento.
+# En render.com → New → Blueprint → conecta este repositorio.
+# Tras el deploy, copia la URL publica y el token generado a Vercel.
+
+services:
+  - type: web
+    name: recuerdos-recognition
+    runtime: docker
+    rootDir: recognition
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: RECOGNITION_SERVICE_TOKEN
+        generateValue: true
