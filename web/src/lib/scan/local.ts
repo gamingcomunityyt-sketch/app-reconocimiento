@@ -28,44 +28,66 @@ interface Fingerprint {
   std: number;
 }
 
-async function fingerprint(buffer: Buffer): Promise<Fingerprint | null> {
+function fingerprintFromBitmap(data: Uint8Array | Buffer): Fingerprint {
+  const gray = new Float64Array(PIXELS);
+  const colorHist = new Float64Array(64);
+  let sum = 0;
+
+  for (let i = 0; i < PIXELS; i++) {
+    const r = data[i * 4];
+    const g = data[i * 4 + 1];
+    const b = data[i * 4 + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray[i] = lum;
+    sum += lum;
+    const bin = (r >> 6) * 16 + (g >> 6) * 4 + (b >> 6);
+    colorHist[bin] += 1;
+  }
+
+  for (let i = 0; i < 64; i++) colorHist[i] /= PIXELS;
+
+  const mean = sum / PIXELS;
+  let variance = 0;
+  const bits = new Uint8Array(PIXELS);
+  for (let i = 0; i < PIXELS; i++) {
+    bits[i] = gray[i] > mean ? 1 : 0;
+    const d = gray[i] - mean;
+    variance += d * d;
+  }
+  const std = Math.sqrt(variance / PIXELS) || 1;
+
+  return { gray, bits, colorHist, mean, std };
+}
+
+async function fingerprints(buffer: Buffer): Promise<Fingerprint[] | null> {
   try {
-    const image = await Jimp.read(buffer);
-    // cover recorta al centro para normalizar el encuadre del objeto.
-    image.cover({ w: SIZE, h: SIZE });
-    const data = image.bitmap.data;
-
-    const gray = new Float64Array(PIXELS);
-    const colorHist = new Float64Array(64);
-    let sum = 0;
-
-    for (let i = 0; i < PIXELS; i++) {
-      const r = data[i * 4];
-      const g = data[i * 4 + 1];
-      const b = data[i * 4 + 2];
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      gray[i] = lum;
-      sum += lum;
-      const bin = (r >> 6) * 16 + (g >> 6) * 4 + (b >> 6);
-      colorHist[bin] += 1;
-    }
-
-    for (let i = 0; i < 64; i++) colorHist[i] /= PIXELS;
-
-    const mean = sum / PIXELS;
-    let variance = 0;
-    const bits = new Uint8Array(PIXELS);
-    for (let i = 0; i < PIXELS; i++) {
-      bits[i] = gray[i] > mean ? 1 : 0;
-      const d = gray[i] - mean;
-      variance += d * d;
-    }
-    const std = Math.sqrt(variance / PIXELS) || 1;
-
-    return { gray, bits, colorHist, mean, std };
+    const cover = await Jimp.read(buffer);
+    cover.cover({ w: SIZE, h: SIZE });
+    const contain = await Jimp.read(buffer);
+    contain.contain({ w: SIZE, h: SIZE });
+    return [
+      fingerprintFromBitmap(cover.bitmap.data),
+      fingerprintFromBitmap(contain.bitmap.data),
+    ];
   } catch {
     return null;
   }
+}
+
+function bestPairScore(
+  a: Fingerprint[],
+  b: Fingerprint[],
+): { structural: number; color: number; combined: number } {
+  let best = { structural: 0, color: 0, combined: 0 };
+  for (const left of a) {
+    for (const right of b) {
+      const structural = structuralSimilarity(left, right);
+      const color = colorSimilarity(left, right);
+      const combined = 0.6 * structural + 0.4 * color;
+      if (combined > best.combined) best = { structural, color, combined };
+    }
+  }
+  return best;
 }
 
 /** Parecido de forma: 50% huella perceptual + 50% correlacion de apariencia. */
@@ -113,7 +135,7 @@ export async function runLocalScan(
   frame: Buffer,
   references: LocalReference[],
 ): Promise<LocalScanResult> {
-  const frameFp = await fingerprint(frame);
+  const frameFp = await fingerprints(frame);
   if (!frameFp) {
     return { outcome: { status: "no_match" }, rankings: [], topScore: null, topColorSimilarity: null };
   }
@@ -126,16 +148,14 @@ export async function runLocalScan(
   }> = [];
 
   for (const reference of references) {
-    const refFp = await fingerprint(reference.buffer);
+    const refFp = await fingerprints(reference.buffer);
     if (!refFp) continue;
-    const structural = structuralSimilarity(frameFp, refFp);
-    const color = colorSimilarity(frameFp, refFp);
-    const combined = 0.6 * structural + 0.4 * color;
+    const pair = bestPairScore(frameFp, refFp);
     scored.push({
       view: reference.view,
-      score: Math.round(combined * 1000) / 10,
-      structural,
-      color,
+      score: Math.round(pair.combined * 1000) / 10,
+      structural: pair.structural,
+      color: pair.color,
     });
   }
 

@@ -1,11 +1,17 @@
 import "server-only";
 
+import { recognitionEnv } from "@/lib/env.server";
 import type { ScanCandidateView, ScanOutcome } from "@/lib/data/types";
 import type { ForcedScanOutcome } from "@/lib/data/scan";
 import { resolveScan } from "@/lib/data/scan";
 
 import { runLocalScan, type LocalReference } from "./local";
-import { SCAN_THRESHOLDS } from "./verdict";
+import {
+  applyScanVerdict,
+  mapRecognitionRankings,
+  SCAN_THRESHOLDS,
+  type RecognitionRankingResponse,
+} from "./verdict";
 import type { ScanRankingDetail, ScanReason } from "./types";
 
 export interface ScanCandidatePayload {
@@ -17,6 +23,12 @@ export interface ScanCandidatePayload {
   memoryCoverUrl: string;
   /** true cuando la referencia viene en el multipart (blob:/data: del navegador). */
   referenceFromClient: boolean;
+}
+
+interface RecognitionMatchResponse {
+  rankings: RecognitionRankingResponse[];
+  scan_keypoints: number;
+  latency_ms: number;
 }
 
 async function loadReferenceBytes(
@@ -38,6 +50,31 @@ async function loadReferenceBytes(
   }
 }
 
+function toBase64(buffer: Buffer): string {
+  return buffer.toString("base64");
+}
+
+function toRankingDetail(
+  ranking: ReturnType<typeof mapRecognitionRankings>[number],
+): ScanRankingDetail {
+  return {
+    objectId: ranking.objectId,
+    score: ranking.score,
+    inliers: ranking.inliers,
+    inlierRatio: ranking.inlierRatio,
+    goodMatches: ranking.goodMatches,
+    keypointsRef: ranking.keypointsRef,
+    keypointsTest: ranking.keypointsTest,
+    plausible: ranking.plausible,
+    colorSimilarity: ranking.colorSimilarity,
+    artSimilarity: ranking.artSimilarity,
+    appearance: ranking.appearance,
+    spread: ranking.spread,
+    verdict: ranking.pairVerdict,
+    message: ranking.message,
+  };
+}
+
 interface ScanRunResult {
   outcome: ScanOutcome;
   simulated: boolean;
@@ -49,6 +86,42 @@ interface ScanRunResult {
   rankings: ScanRankingDetail[];
   scanKeypoints: number | null;
   thresholds: typeof SCAN_THRESHOLDS;
+}
+
+const PYTHON_TIMEOUT_MS = 12_000;
+
+async function matchWithPython(
+  frame: Buffer,
+  references: LocalReference[],
+  env: { url: string; token: string },
+): Promise<RecognitionMatchResponse | null> {
+  const candidates = references.map((reference) => ({
+    id: reference.view.objectId,
+    image_base64: toBase64(reference.buffer),
+  }));
+
+  try {
+    const response = await fetch(`${env.url.replace(/\/$/, "")}/match`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        scan_image_base64: toBase64(frame),
+        candidates,
+      }),
+      signal: AbortSignal.timeout(PYTHON_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      console.error("[scan] python error", response.status);
+      return null;
+    }
+    return (await response.json()) as RecognitionMatchResponse;
+  } catch (error) {
+    console.error("[scan] python unreachable", error);
+    return null;
+  }
 }
 
 export async function runScan(
@@ -103,10 +176,9 @@ export async function runScan(
   for (const candidate of candidates) {
     const bytes = await loadReferenceBytes(candidate, form);
     if (!bytes) continue;
-    references.push({
-      view: views.find((view) => view.objectId === candidate.objectId)!,
-      buffer: bytes,
-    });
+    const view = views.find((item) => item.objectId === candidate.objectId);
+    if (!view) continue;
+    references.push({ view, buffer: bytes });
   }
 
   if (references.length === 0) {
@@ -120,6 +192,31 @@ export async function runScan(
       topScore: null,
       topColorSimilarity: null,
     };
+  }
+
+  const env = recognitionEnv();
+  if (env) {
+    let payload = await matchWithPython(frame, references, env);
+    if (!payload) {
+      payload = await matchWithPython(frame, references, env);
+    }
+    if (payload) {
+      const rankings = mapRecognitionRankings(payload.rankings);
+      const outcome = applyScanVerdict(rankings, views);
+      return {
+        outcome,
+        simulated: false,
+        latencyMs: payload.latency_ms ?? Date.now() - started,
+        rankingCount: rankings.length,
+        reason: "recognition_complete",
+        topScore: rankings[0]?.score ?? null,
+        topColorSimilarity: rankings[0]?.colorSimilarity ?? null,
+        rankings: rankings.map(toRankingDetail),
+        scanKeypoints: payload.scan_keypoints ?? null,
+        thresholds: SCAN_THRESHOLDS,
+      };
+    }
+    console.warn("[scan] python unavailable, falling back to local");
   }
 
   try {
