@@ -1,17 +1,11 @@
 import "server-only";
 
-import { recognitionEnv } from "@/lib/env.server";
 import type { ScanCandidateView, ScanOutcome } from "@/lib/data/types";
 import type { ForcedScanOutcome } from "@/lib/data/scan";
 import { resolveScan } from "@/lib/data/scan";
 
-import {
-  applyScanVerdict,
-  mapRecognitionRankings,
-  SCAN_THRESHOLDS,
-  type CandidateRanking,
-  type RecognitionRankingResponse,
-} from "./verdict";
+import { runLocalScan, type LocalReference } from "./local";
+import { SCAN_THRESHOLDS } from "./verdict";
 import type { ScanRankingDetail, ScanReason } from "./types";
 
 export interface ScanCandidatePayload {
@@ -23,12 +17,6 @@ export interface ScanCandidatePayload {
   memoryCoverUrl: string;
   /** true cuando la referencia viene en el multipart (blob:/data: del navegador). */
   referenceFromClient: boolean;
-}
-
-interface RecognitionMatchResponse {
-  rankings: RecognitionRankingResponse[];
-  scan_keypoints: number;
-  latency_ms: number;
 }
 
 async function loadReferenceBytes(
@@ -48,29 +36,6 @@ async function loadReferenceBytes(
   } catch {
     return null;
   }
-}
-
-function toBase64(buffer: Buffer): string {
-  return buffer.toString("base64");
-}
-
-function toRankingDetail(ranking: CandidateRanking): ScanRankingDetail {
-  return {
-    objectId: ranking.objectId,
-    score: ranking.score,
-    inliers: ranking.inliers,
-    inlierRatio: ranking.inlierRatio,
-    goodMatches: ranking.goodMatches,
-    keypointsRef: ranking.keypointsRef,
-    keypointsTest: ranking.keypointsTest,
-    plausible: ranking.plausible,
-    colorSimilarity: ranking.colorSimilarity,
-    artSimilarity: ranking.artSimilarity,
-    appearance: ranking.appearance,
-    spread: ranking.spread,
-    verdict: ranking.pairVerdict,
-    message: ranking.message,
-  };
 }
 
 interface ScanRunResult {
@@ -133,27 +98,14 @@ export async function runScan(
     };
   }
 
-  const env = recognitionEnv();
-  if (!env) {
-    return {
-      ...base,
-      outcome: { status: "no_match" },
-      simulated: true,
-      latencyMs: null,
-      rankingCount: 0,
-      reason: "simulated_no_service",
-      topScore: null,
-      topColorSimilarity: null,
-    };
-  }
-
-  const references: Array<{ id: string; image_base64: string }> = [];
+  const started = Date.now();
+  const references: LocalReference[] = [];
   for (const candidate of candidates) {
     const bytes = await loadReferenceBytes(candidate, form);
     if (!bytes) continue;
     references.push({
-      id: candidate.objectId,
-      image_base64: toBase64(bytes),
+      view: views.find((view) => view.objectId === candidate.objectId)!,
+      buffer: bytes,
     });
   }
 
@@ -170,69 +122,31 @@ export async function runScan(
     };
   }
 
-  const started = Date.now();
-  let response: Response;
   try {
-    response = await fetch(`${env.url.replace(/\/$/, "")}/match`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        scan_image_base64: toBase64(frame),
-        candidates: references,
-      }),
-      signal: AbortSignal.timeout(25_000),
-    });
+    const result = await runLocalScan(frame, references);
+    return {
+      outcome: result.outcome,
+      simulated: false,
+      latencyMs: Date.now() - started,
+      rankingCount: result.rankings.length,
+      reason: "recognition_complete",
+      topScore: result.topScore,
+      topColorSimilarity: result.topColorSimilarity,
+      rankings: result.rankings,
+      scanKeypoints: null,
+      thresholds: SCAN_THRESHOLDS,
+    };
   } catch (error) {
-    const timedOut =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
-    console.error("[scan] recognition fetch failed", error);
+    console.error("[scan] local recognition failed", error);
     return {
       ...base,
       outcome: { status: "no_match" },
       simulated: false,
       latencyMs: Date.now() - started,
       rankingCount: 0,
-      reason: timedOut ? "service_timeout" : "service_unavailable",
+      reason: "service_unavailable",
       topScore: null,
       topColorSimilarity: null,
     };
   }
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    console.error("[scan] recognition service error", response.status, detail);
-    return {
-      ...base,
-      outcome: { status: "no_match" },
-      simulated: false,
-      latencyMs: Date.now() - started,
-      rankingCount: 0,
-      reason: response.status === 422 ? "scan_low_texture" : "service_unavailable",
-      topScore: null,
-      topColorSimilarity: null,
-    };
-  }
-
-  const payload = (await response.json()) as RecognitionMatchResponse;
-  const rankings = mapRecognitionRankings(payload.rankings);
-  const outcome = applyScanVerdict(rankings, views);
-  const topScore = rankings[0]?.score ?? null;
-  const topColorSimilarity = rankings[0]?.colorSimilarity ?? null;
-
-  return {
-    outcome,
-    simulated: false,
-    latencyMs: payload.latency_ms ?? Date.now() - started,
-    rankingCount: rankings.length,
-    reason: "recognition_complete",
-    topScore,
-    topColorSimilarity,
-    rankings: rankings.map(toRankingDetail),
-    scanKeypoints: payload.scan_keypoints ?? null,
-    thresholds: SCAN_THRESHOLDS,
-  };
 }

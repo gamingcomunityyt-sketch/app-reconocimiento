@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // jimp (reconocimiento local) usa APIs de Node; que no se empaquete.
+  serverExternalPackages: ["jimp"],
   experimental: {
     /**
      * Detecta la perdida de conexion y reintenta sola la navegacion que se
