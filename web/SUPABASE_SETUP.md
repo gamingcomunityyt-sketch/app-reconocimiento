@@ -20,6 +20,13 @@ En Supabase → **SQL Editor**, pega y ejecuta el archivo:
 Eso crea tablas, politicas RLS (nadie lee lo de otro) y el bucket privado
 `memory-media`.
 
+Despues ejecuta tambien (una sola vez):
+
+`web/supabase/migrations/003_account_bootstrap.sql`
+
+Eso anade funciones que reparan la cuenta al entrar y crean recuerdos sin
+depender de la clave `service_role` en Vercel.
+
 ## 3. Auth
 
 En **Authentication → Providers → Email**:

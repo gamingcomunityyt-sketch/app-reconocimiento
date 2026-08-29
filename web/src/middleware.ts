@@ -4,7 +4,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { updateSession } from "@/lib/supabase/middleware";
 
 const AUTH_PATHS = ["/entrar", "/registro"];
-const PUBLIC_PREFIXES = ["/entrar", "/registro", "/auth"];
+const PUBLIC_PREFIXES = ["/entrar", "/registro", "/auth", "/api/scan/health"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some(

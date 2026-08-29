@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
-  acceptPendingInvites,
+  ensureCloudAccountReady,
   createCloudMemory,
   deleteCloudMemory,
   inviteToMemory,
@@ -24,7 +24,7 @@ export async function saveCloudMemoryAction(formData: FormData): Promise<ActionR
     return { error: "Supabase no esta configurado." };
   }
 
-  await acceptPendingInvites();
+  await ensureCloudAccountReady();
 
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "El titulo es obligatorio." };
