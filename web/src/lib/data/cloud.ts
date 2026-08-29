@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -84,6 +86,60 @@ export async function getProfile() {
   };
 }
 
+function mapCloudError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("row-level security") || lower.includes("rls")) {
+    return "Permisos de cuenta incompletos. Cierra sesion, vuelve a entrar e intentalo otra vez.";
+  }
+  if (lower.includes("not_authenticated") || lower.includes("jwt")) {
+    return "Tu sesion ha caducado. Vuelve a entrar.";
+  }
+  if (lower.includes("bucket") && lower.includes("not found")) {
+    return "Falta el almacen de fotos en Supabase (bucket memory-media).";
+  }
+  return message || "No se pudo completar la accion.";
+}
+
+/** Perfil, invitaciones y membresias de dueno antes de leer o escribir recuerdos. */
+export async function ensureCloudAccountReady(): Promise<void> {
+  const user = await getAuthUser();
+  if (!user) return;
+
+  const supabase = await createClient();
+  const { error: rpcError } = await supabase.rpc("bootstrap_user_account");
+  if (!rpcError) return;
+
+  await acceptPendingInvites();
+
+  const displayName =
+    (typeof user.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name
+      : null) ??
+    user.email?.split("@")[0] ??
+    "Tu";
+
+  await supabase.from("profiles").upsert(
+    { id: user.id, display_name: displayName },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+
+  const { data: owned } = await supabase
+    .from("memories")
+    .select("id")
+    .eq("owner_id", user.id);
+
+  for (const memory of owned ?? []) {
+    const { error } = await supabase.from("memory_members").insert({
+      memory_id: memory.id,
+      user_id: user.id,
+      role: "owner",
+    });
+    if (error && !error.message.includes("duplicate")) {
+      // Sin politica de insert o fila ya existente: seguimos con el resto.
+    }
+  }
+}
+
 export async function acceptPendingInvites(): Promise<void> {
   const user = await getAuthUser();
   if (!user?.email) return;
@@ -115,7 +171,7 @@ export async function acceptPendingInvites(): Promise<void> {
 }
 
 export async function listCloudMemories(): Promise<MemorySummary[]> {
-  await acceptPendingInvites();
+  await ensureCloudAccountReady();
   const supabase = await createClient();
   const { data: memories, error } = await supabase
     .from("memories")
@@ -174,7 +230,7 @@ export async function listCloudMemories(): Promise<MemorySummary[]> {
 }
 
 export async function getCloudMemory(id: string): Promise<MemoryDetail | null> {
-  await acceptPendingInvites();
+  await ensureCloudAccountReady();
   const supabase = await createClient();
   const { data: memory, error } = await supabase
     .from("memories")
@@ -293,6 +349,57 @@ export async function listCloudScanCandidates(): Promise<ScanCandidateView[]> {
   });
 }
 
+async function createMemoryRow(
+  supabase: SupabaseClient,
+  userId: string,
+  input: Pick<
+    Parameters<typeof createCloudMemory>[0],
+    "title" | "description" | "happenedAt" | "location"
+  >,
+  options?: { skipRpc?: boolean },
+): Promise<{ id: string } | { error: string }> {
+  if (!options?.skipRpc) {
+    const { data: rpcId, error: rpcError } = await supabase.rpc("create_memory_record", {
+      p_title: input.title,
+      p_description: input.description,
+      p_happened_at: input.happenedAt,
+      p_location: input.location,
+    });
+
+    if (!rpcError && typeof rpcId === "string") {
+      return { id: rpcId };
+    }
+  }
+
+  const memory = { id: crypto.randomUUID() };
+  const { error: memoryError } = await supabase.from("memories").insert({
+    id: memory.id,
+    owner_id: userId,
+    title: input.title,
+    description: input.description,
+    happened_at: input.happenedAt,
+    location: input.location,
+    visibility: "private",
+  });
+
+  if (memoryError) {
+    return { error: mapCloudError(memoryError.message) };
+  }
+
+  const { error: memberError } = await supabase.from("memory_members").insert({
+    memory_id: memory.id,
+    user_id: userId,
+    role: "owner",
+  });
+
+  if (memberError) {
+    await supabase.from("memories").delete().eq("id", memory.id);
+    return { error: mapCloudError(memberError.message) };
+  }
+
+  return { id: memory.id };
+}
+
 export async function createCloudMemory(input: {
   title: string;
   description: string | null;
@@ -307,37 +414,27 @@ export async function createCloudMemory(input: {
   const user = await getAuthUser();
   if (!user) return { error: "Debes iniciar sesion." };
 
-  // Ya verificamos la identidad; usamos service_role para escribir sin chocar
-  // con RLS (evita "new row violates row-level security policy"). Si no hay
-  // clave configurada, caemos al cliente con cookies.
-  const supabase = createAdminClient() ?? (await createClient());
-  const memory = { id: crypto.randomUUID() };
-  const { error: memoryError } = await supabase.from("memories").insert({
-    id: memory.id,
-    owner_id: user.id,
-    title: input.title,
-    description: input.description,
-    happened_at: input.happenedAt,
-    location: input.location,
-    visibility: "private",
-  });
+  await ensureCloudAccountReady();
 
-  if (memoryError) {
-    return { error: memoryError.message ?? "No se pudo crear el recuerdo." };
+  const userId = user.id;
+
+  // Sesion verificada: escribimos con el cliente autenticado (RLS). Solo si
+  // falla usamos service_role como ultimo recurso en el servidor.
+  let supabase = await createClient();
+  let created = await createMemoryRow(supabase, userId, input);
+
+  if ("error" in created) {
+    const admin = createAdminClient();
+    if (!admin) return created;
+    created = await createMemoryRow(admin, userId, input, { skipRpc: true });
+    if ("error" in created) return created;
+    supabase = admin;
   }
 
-  const { error: memberError } = await supabase.from("memory_members").insert({
-    memory_id: memory.id,
-    user_id: user.id,
-    role: "owner",
-  });
-  if (memberError) {
-    await supabase.from("memories").delete().eq("id", memory.id);
-    return { error: memberError.message };
-  }
+  const memory = created;
 
   async function upload(blob: Blob, filename: string): Promise<string | null> {
-    const path = `${user!.id}/${memory!.id}/${filename}`;
+    const path = `${userId}/${memory.id}/${filename}`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
       contentType: blob.type || "image/jpeg",
       upsert: false,
@@ -389,7 +486,7 @@ export async function createCloudMemory(input: {
   }
 
   const { error: mediaError } = await supabase.from("media").insert(mediaInserts);
-  if (mediaError) return { error: mediaError.message };
+  if (mediaError) return { error: mapCloudError(mediaError.message) };
 
   const objectRow = { id: crypto.randomUUID() };
   const { error: objectError } = await supabase
@@ -397,7 +494,7 @@ export async function createCloudMemory(input: {
     .insert({ id: objectRow.id, memory_id: memory.id, label: input.objectLabel });
 
   if (objectError) {
-    return { error: objectError.message ?? "No se pudo vincular el objeto." };
+    return { error: mapCloudError(objectError.message ?? "No se pudo vincular el objeto.") };
   }
 
   const objectPath = await upload(input.objectBlob, `object-0.jpg`);
