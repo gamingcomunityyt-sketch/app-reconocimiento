@@ -23,7 +23,7 @@ import {
   configureScanTelemetry,
   trackScanEvent,
 } from "@/lib/scan-telemetry";
-import { submitScan } from "@/lib/scan/client";
+import { submitLocalScan } from "@/lib/scan/local-client";
 
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { RecognitionOverlay, type ScanPhase } from "./RecognitionOverlay";
@@ -152,7 +152,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
       try {
         const frameResponse = await fetch(frameUrl);
         const frameBlob = await frameResponse.blob();
-        const apiResult = await submitScan(frameBlob, allCandidates, forced);
+        const apiResult = await submitLocalScan(frameBlob, allCandidates, forced);
         if (cancelled) return;
 
         setSimulated(apiResult.simulated);
@@ -183,6 +183,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
           latencyMs: Math.round(performance.now() - startedAt),
           message: error instanceof Error ? error.message : "unknown",
         });
+        setScanReason("service_unavailable");
         setOutcome({ status: "no_match" });
         setPhase("resolved");
       }
