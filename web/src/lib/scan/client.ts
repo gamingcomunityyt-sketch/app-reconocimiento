@@ -1,6 +1,5 @@
 import type { ScanCandidateView } from "@/lib/data/types";
 import type { ForcedScanOutcome } from "@/lib/data/scan";
-import { isClientMediaUrl } from "@/lib/media-url";
 
 import type { ScanApiResponse } from "./types";
 
@@ -12,14 +11,32 @@ export async function submitScan(
   const form = new FormData();
   form.append("frame", frameBlob, "scan.jpg");
 
-  const payload = candidates.map((candidate) => ({
+  const attachments = await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const response = await fetch(candidate.objectImageUrl, { cache: "no-store" });
+        if (!response.ok) {
+          return { candidate, attached: false as const };
+        }
+        const blob = await response.blob();
+        if (blob.size === 0) {
+          return { candidate, attached: false as const };
+        }
+        return { candidate, attached: true as const, blob };
+      } catch {
+        return { candidate, attached: false as const };
+      }
+    }),
+  );
+
+  const payload = attachments.map(({ candidate, attached }) => ({
     objectId: candidate.objectId,
     objectLabel: candidate.objectLabel,
     objectImageUrl: candidate.objectImageUrl,
     memoryId: candidate.memoryId,
     memoryTitle: candidate.memoryTitle,
     memoryCoverUrl: candidate.memoryCoverUrl,
-    referenceFromClient: isClientMediaUrl(candidate.objectImageUrl),
+    referenceFromClient: attached,
   }));
   form.append("candidates", JSON.stringify(payload));
 
@@ -27,15 +44,14 @@ export async function submitScan(
     form.append("forced", forced);
   }
 
-  await Promise.all(
-    candidates
-      .filter((candidate) => isClientMediaUrl(candidate.objectImageUrl))
-      .map(async (candidate) => {
-        const response = await fetch(candidate.objectImageUrl);
-        const blob = await response.blob();
-        form.append(`reference_${candidate.objectId}`, blob, `${candidate.objectId}.jpg`);
-      }),
-  );
+  for (const item of attachments) {
+    if (!item.attached || !item.blob) continue;
+    form.append(
+      `reference_${item.candidate.objectId}`,
+      item.blob,
+      `${item.candidate.objectId}.jpg`,
+    );
+  }
 
   const response = await fetch("/api/scan", {
     method: "POST",

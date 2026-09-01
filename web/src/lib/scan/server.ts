@@ -1,6 +1,6 @@
 import "server-only";
 
-import { recognitionEnv } from "@/lib/env.server";
+import { recognitionEnv, scanEnginePreference } from "@/lib/env.server";
 import type { ScanCandidateView, ScanOutcome } from "@/lib/data/types";
 import type { ForcedScanOutcome } from "@/lib/data/scan";
 import { resolveScan } from "@/lib/data/scan";
@@ -12,7 +12,7 @@ import {
   SCAN_THRESHOLDS,
   type RecognitionRankingResponse,
 } from "./verdict";
-import type { ScanRankingDetail, ScanReason } from "./types";
+import type { ScanEngine, ScanRankingDetail, ScanReason } from "./types";
 
 export interface ScanCandidatePayload {
   objectId: string;
@@ -42,7 +42,10 @@ async function loadReferenceBytes(
   }
 
   try {
-    const response = await fetch(candidate.objectImageUrl);
+    const response = await fetch(candidate.objectImageUrl, {
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
     if (!response.ok) return null;
     return Buffer.from(await response.arrayBuffer());
   } catch {
@@ -78,6 +81,7 @@ function toRankingDetail(
 interface ScanRunResult {
   outcome: ScanOutcome;
   simulated: boolean;
+  engine: ScanEngine;
   latencyMs: number | null;
   rankingCount: number;
   reason: ScanReason;
@@ -88,7 +92,21 @@ interface ScanRunResult {
   thresholds: typeof SCAN_THRESHOLDS;
 }
 
-const PYTHON_TIMEOUT_MS = 12_000;
+const PYTHON_HEALTH_MS = 2_500;
+const PYTHON_MATCH_MS = 6_000;
+
+async function isPythonReachable(env: { url: string; token: string }): Promise<boolean> {
+  try {
+    const response = await fetch(`${env.url.replace(/\/$/, "")}/health`, {
+      headers: { Authorization: `Bearer ${env.token}` },
+      signal: AbortSignal.timeout(PYTHON_HEALTH_MS),
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 async function matchWithPython(
   frame: Buffer,
@@ -111,7 +129,7 @@ async function matchWithPython(
         scan_image_base64: toBase64(frame),
         candidates,
       }),
-      signal: AbortSignal.timeout(PYTHON_TIMEOUT_MS),
+      signal: AbortSignal.timeout(PYTHON_MATCH_MS),
     });
     if (!response.ok) {
       console.error("[scan] python error", response.status);
@@ -122,6 +140,28 @@ async function matchWithPython(
     console.error("[scan] python unreachable", error);
     return null;
   }
+}
+
+async function runLocal(
+  frame: Buffer,
+  references: LocalReference[],
+  started: number,
+  reason: ScanReason,
+): Promise<ScanRunResult> {
+  const result = await runLocalScan(frame, references);
+  return {
+    outcome: result.outcome,
+    simulated: false,
+    engine: "local",
+    latencyMs: Date.now() - started,
+    rankingCount: result.rankings.length,
+    reason,
+    topScore: result.topScore,
+    topColorSimilarity: result.topColorSimilarity,
+    rankings: result.rankings,
+    scanKeypoints: null,
+    thresholds: SCAN_THRESHOLDS,
+  };
 }
 
 export async function runScan(
@@ -143,6 +183,7 @@ export async function runScan(
     rankings: [] as ScanRankingDetail[],
     scanKeypoints: null,
     thresholds: SCAN_THRESHOLDS,
+    engine: "local" as ScanEngine,
   };
 
   if (forced) {
@@ -194,45 +235,45 @@ export async function runScan(
     };
   }
 
+  const preference = scanEnginePreference();
   const env = recognitionEnv();
-  if (env) {
-    let payload = await matchWithPython(frame, references, env);
-    if (!payload) {
-      payload = await matchWithPython(frame, references, env);
+  const pythonConfigured = preference !== "local" && env !== null;
+
+  if (pythonConfigured && env) {
+    const tryPython =
+      preference === "python" || (await isPythonReachable(env));
+    if (tryPython) {
+      const payload = await matchWithPython(frame, references, env);
+      if (payload) {
+        const rankings = mapRecognitionRankings(payload.rankings);
+        const outcome = applyScanVerdict(rankings, views);
+        return {
+          outcome,
+          simulated: false,
+          engine: "python",
+          latencyMs: payload.latency_ms ?? Date.now() - started,
+          rankingCount: rankings.length,
+          reason: "recognition_complete",
+          topScore: rankings[0]?.score ?? null,
+          topColorSimilarity: rankings[0]?.colorSimilarity ?? null,
+          rankings: rankings.map(toRankingDetail),
+          scanKeypoints: payload.scan_keypoints ?? null,
+          thresholds: SCAN_THRESHOLDS,
+        };
+      }
+      console.warn("[scan] python unavailable, falling back to local");
+    } else {
+      console.warn("[scan] python not reachable, using local immediately");
     }
-    if (payload) {
-      const rankings = mapRecognitionRankings(payload.rankings);
-      const outcome = applyScanVerdict(rankings, views);
-      return {
-        outcome,
-        simulated: false,
-        latencyMs: payload.latency_ms ?? Date.now() - started,
-        rankingCount: rankings.length,
-        reason: "recognition_complete",
-        topScore: rankings[0]?.score ?? null,
-        topColorSimilarity: rankings[0]?.colorSimilarity ?? null,
-        rankings: rankings.map(toRankingDetail),
-        scanKeypoints: payload.scan_keypoints ?? null,
-        thresholds: SCAN_THRESHOLDS,
-      };
-    }
-    console.warn("[scan] python unavailable, falling back to local");
   }
 
   try {
-    const result = await runLocalScan(frame, references);
-    return {
-      outcome: result.outcome,
-      simulated: false,
-      latencyMs: Date.now() - started,
-      rankingCount: result.rankings.length,
-      reason: "recognition_complete",
-      topScore: result.topScore,
-      topColorSimilarity: result.topColorSimilarity,
-      rankings: result.rankings,
-      scanKeypoints: null,
-      thresholds: SCAN_THRESHOLDS,
-    };
+    return await runLocal(
+      frame,
+      references,
+      started,
+      pythonConfigured ? "local_fallback" : "recognition_complete",
+    );
   } catch (error) {
     console.error("[scan] local recognition failed", error);
     return {

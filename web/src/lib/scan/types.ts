@@ -1,5 +1,6 @@
 export type ScanReason =
   | "recognition_complete"
+  | "local_fallback"
   | "simulated_no_service"
   | "simulated_forced"
   | "service_unavailable"
@@ -7,6 +8,8 @@ export type ScanReason =
   | "no_candidates"
   | "no_references"
   | "scan_low_texture";
+
+export type ScanEngine = "python" | "local";
 
 /** Veredicto por par escaneo/referencia tal y como lo devuelve el motor. */
 export type PairVerdict = "MATCH" | "AMBIGUOUS" | "NO MATCH";
@@ -53,6 +56,8 @@ export interface ScanThresholds {
 export interface ScanApiResponse {
   outcome: import("@/lib/data/types").ScanOutcome;
   simulated: boolean;
+  /** Motor que resolvio este escaneo. */
+  engine: ScanEngine;
   latencyMs: number | null;
   rankingCount: number;
   reason: ScanReason;

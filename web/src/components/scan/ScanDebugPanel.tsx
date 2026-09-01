@@ -18,6 +18,7 @@ import type { ScanCandidateView, ScanOutcome } from "@/lib/data";
 import type { CameraStatus } from "@/components/camera/useCamera";
 import type {
   PairVerdict,
+  ScanEngine,
   ScanRankingDetail,
   ScanThresholds,
 } from "@/lib/scan/types";
@@ -39,6 +40,7 @@ interface ScanDebugPanelProps {
   lastFrameUrl: string | null;
   forced?: string;
   simulated: boolean;
+  scanEngine?: ScanEngine;
   scanReason?: string | null;
   topScore?: number | null;
   topColorSimilarity?: number | null;
@@ -85,6 +87,7 @@ export function ScanDebugPanel({
   lastFrameUrl,
   forced,
   simulated,
+  scanEngine = "local",
   scanReason,
   scanKeypoints,
   rankings = [],
@@ -123,6 +126,8 @@ export function ScanDebugPanel({
 
   const best = rows[0] ?? null;
   const second = rows[1] ?? null;
+  const engineLabel = simulated ? "simulado" : scanEngine === "python" ? "opencv" : "integrado";
+  const engineTone = simulated ? "warn" : scanEngine === "python" ? "ok" : "warn";
 
   return (
     <div className="pointer-events-auto absolute inset-x-2 bottom-2 top-14 z-[60] flex flex-col overflow-hidden rounded-lg border border-white/15 bg-slate-950/90 text-white backdrop-blur-md">
@@ -135,7 +140,7 @@ export function ScanDebugPanel({
           <span
             className={cn(
               "grid size-6 place-items-center rounded-md",
-              simulated ? "bg-amber-500/25 text-amber-300" : "bg-emerald-500/25 text-emerald-300",
+              simulated ? "bg-amber-500/25 text-amber-300" : scanEngine === "python" ? "bg-emerald-500/25 text-emerald-300" : "bg-sky-500/25 text-sky-300",
             )}
           >
             <Bug size={14} aria-hidden />
@@ -143,7 +148,7 @@ export function ScanDebugPanel({
           Modo desarrollador
         </span>
         <span className="inline-flex items-center gap-2 text-[11px] text-white/50">
-          {simulated ? "simulado" : "opencv"}
+          {engineLabel}
           <ChevronDown
             size={16}
             aria-hidden
@@ -158,7 +163,7 @@ export function ScanDebugPanel({
           <div className="flex flex-wrap gap-1.5">
             <Chip label="Cámara" value={cameraStatus} tone={cameraStatus === "ready" ? "ok" : "warn"} />
             <Chip label="Fase" value={phase} />
-            <Chip label="Motor" value={simulated ? "simulado" : "opencv"} tone={simulated ? "warn" : "ok"} />
+            <Chip label="Motor" value={engineLabel} tone={engineTone} />
             <Chip label="Objetos" value={String(candidates.length)} tone={candidates.length > 0 ? "ok" : "warn"} />
             {scanKeypoints !== null && scanKeypoints !== undefined ? (
               <Chip label="Keypoints" value={String(scanKeypoints)} tone={scanKeypoints > 50 ? "ok" : "warn"} />
@@ -169,9 +174,12 @@ export function ScanDebugPanel({
 
           {simulated ? (
             <p className="rounded-md bg-amber-500/15 px-2.5 py-2 text-[11px] text-amber-200 ring-1 ring-amber-400/30">
-              Motor de reconocimiento no conectado. Arranca el servicio Python
-              (puerto 8000) y configura <code>RECOGNITION_SERVICE_URL</code>. Sin
-              él no hay porcentajes reales.
+              Resultado forzado para pruebas (no es un escaneo real).
+            </p>
+          ) : scanEngine === "local" ? (
+            <p className="rounded-md bg-sky-500/15 px-2.5 py-2 text-[11px] text-sky-200 ring-1 ring-sky-400/30">
+              Motor integrado en Vercel (gratis). Para OpenCV avanzado configura
+              el servicio Python o <code>SCAN_ENGINE=python</code>.
             </p>
           ) : null}
 

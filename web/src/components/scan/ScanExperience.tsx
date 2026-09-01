@@ -55,7 +55,8 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
   const [phase, setPhase] = useState<ScanPhase>("aiming");
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null);
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
-  const [simulated, setSimulated] = useState(true);
+  const [simulated, setSimulated] = useState(false);
+  const [scanEngine, setScanEngine] = useState<"python" | "local">("local");
   const [scanReason, setScanReason] = useState<string | null>(null);
   const [topScore, setTopScore] = useState<number | null>(null);
   const [topColorSimilarity, setTopColorSimilarity] = useState<number | null>(null);
@@ -155,6 +156,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
         if (cancelled) return;
 
         setSimulated(apiResult.simulated);
+        setScanEngine(apiResult.engine ?? "local");
         setScanReason(apiResult.reason);
         setTopScore(apiResult.topScore);
         setTopColorSimilarity(apiResult.topColorSimilarity);
@@ -208,7 +210,8 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
   function retry() {
     trackScanEvent("retry");
     setOutcome(null);
-    setSimulated(true);
+    setSimulated(false);
+    setScanEngine("local");
     setScanReason(null);
     setTopScore(null);
     setTopColorSimilarity(null);
@@ -287,6 +290,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
             lastFrameUrl={lastFrameUrl}
             forced={forced}
             simulated={simulated}
+            scanEngine={scanEngine}
             scanReason={scanReason}
             topScore={topScore}
             topColorSimilarity={topColorSimilarity}
@@ -397,17 +401,21 @@ function scanReasonMessage(
 
   if (reason === "simulated_no_service") {
     if (isProduction) {
-      return "El escaner no esta configurado en el servidor. Despliega el servicio Python en Render y anade RECOGNITION_SERVICE_URL y RECOGNITION_SERVICE_TOKEN en Vercel. Mira DEPLOY.md en el repositorio.";
+      return "El escaner avanzado (Python) no esta configurado. El escaneo integrado sigue activo: prueba con buena luz y el mismo objeto que guardaste.";
     }
-    return "El motor de reconocimiento no esta activo. Arranca el servicio Python (puerto 8000) y reinicia Next.js.";
+    return "El motor avanzado no esta activo. Arranca el servicio Python (puerto 8000) o usa el escaneo integrado.";
   }
   if (reason === "service_unavailable") {
-    return isProduction
-      ? "No hemos podido contactar con el servicio de reconocimiento. Comprueba que Render este activo y que las variables en Vercel sean correctas."
-      : "No hemos podido contactar con el servicio de reconocimiento. Comprueba que este en marcha.";
+    return "No se pudo analizar la imagen. Vuelve a intentar o crea un recuerdo con una foto mas clara del objeto.";
   }
   if (reason === "service_timeout") {
-    return "El servicio tardo demasiado en responder (puede estar despertando en Render). Espera unos segundos y vuelve a intentar.";
+    return "El analisis tardo demasiado. Vuelve a intentar con buena luz.";
+  }
+  if (reason === "local_fallback") {
+    if (topScore !== null && topScore > 0) {
+      return `Hay algo parecido (similitud ${topScore}/100) pero no suficiente. Acercate, mejora la luz o cambia el angulo.`;
+    }
+    return "No hemos reconocido este objeto. Acercate, mejora la luz y apunta al mismo objeto que guardaste.";
   }
   if (reason === "no_candidates") {
     return "No hay objetos registrados. Crea un recuerdo con foto y titulo antes de escanear.";
