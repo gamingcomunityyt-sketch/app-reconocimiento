@@ -35,13 +35,14 @@ export function recognitionEnv(): { url: string; token: string } | null {
 
 /**
  * Motor de escaneo:
- * - local: solo reconocimiento integrado en Vercel (gratis, sin Render).
+ * - local (defecto): reconocimiento integrado en Vercel, gratis, sin Render.
+ * - auto: Python si responde rapido; si no, local.
  * - python: solo servicio externo OpenCV.
- * - auto (defecto): Python si responde rapido; si no, local.
  */
 export function scanEnginePreference(): "local" | "python" | "auto" {
   const raw = process.env.SCAN_ENGINE?.trim().toLowerCase();
   if (raw === "local") return "local";
   if (raw === "python") return "python";
-  return "auto";
+  if (raw === "auto") return "auto";
+  return "local";
 }
