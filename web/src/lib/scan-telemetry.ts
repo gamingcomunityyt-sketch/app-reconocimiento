@@ -14,7 +14,8 @@ export type ScanTelemetryKind =
   | "resolve_start"
   | "resolve_done"
   | "retry"
-  | "navigate";
+  | "navigate"
+  | "vision_health";
 
 export interface ScanTelemetryEvent {
   id: string;

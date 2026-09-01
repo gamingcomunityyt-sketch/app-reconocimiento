@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { CameraSurface } from "@/components/camera/CameraSurface";
-import { useCamera } from "@/components/camera/useCamera";
+import { CAMERA_CAPTURE, useCamera } from "@/components/camera/useCamera";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import type { ScanCandidateView, ScanOutcome } from "@/lib/data";
@@ -24,6 +24,10 @@ import {
   trackScanEvent,
 } from "@/lib/scan-telemetry";
 import { submitLocalScan } from "@/lib/scan/local-client";
+import {
+  isVisionApiAvailable,
+  submitVisionScan,
+} from "@/lib/scan/vision-scan";
 
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { RecognitionOverlay, type ScanPhase } from "./RecognitionOverlay";
@@ -57,6 +61,8 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
   const [simulated, setSimulated] = useState(false);
   const [scanEngine, setScanEngine] = useState<"python" | "local">("local");
+  const [visionReady, setVisionReady] = useState(false);
+  const [visionNote, setVisionNote] = useState<string | null>(null);
   const [scanReason, setScanReason] = useState<string | null>(null);
   const [topScore, setTopScore] = useState<number | null>(null);
   const [topColorSimilarity, setTopColorSimilarity] = useState<number | null>(null);
@@ -96,8 +102,12 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
       sessionCandidates: createdMemories.flatMap((memory) => memory.objects).length,
     });
 
-    // En produccion, despierta Render (plan free) mientras el usuario encuadra.
+    // Despierta servicios mientras el usuario encuadra.
     void fetch("/api/scan/warmup", { method: "POST" }).catch(() => undefined);
+    void isVisionApiAvailable().then((ready) => {
+      setVisionReady(ready);
+      trackScanEvent("vision_health", { ready });
+    });
   }, [debug, forced, candidates.length, createdMemories]);
 
   useEffect(() => {
@@ -131,9 +141,9 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
       trackScanEvent("resolve_start", { candidateCount: allCandidates.length });
       const startedAt = performance.now();
 
-      // El fotograma ya reducido es exactamente lo que se enviara a /api/scan
-      // cuando exista el servicio de reconocimiento.
-      const frameUrl = await camera.captureFrame();
+      // Fotograma limpio: la retícula es solo UI, no va en los píxeles.
+      const frameBlob = await camera.captureBlob(CAMERA_CAPTURE.scan);
+      const frameUrl = frameBlob ? URL.createObjectURL(frameBlob) : null;
       if (cancelled) return;
 
       if (frameUrl) {
@@ -141,6 +151,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
         trackScanEvent("frame_captured", {
           frameUrl: frameUrl.slice(0, 48),
           hasFrame: true,
+          engine: visionReady ? "vision_v10" : "local",
         });
       } else {
         trackScanEvent("frame_captured", { hasFrame: false });
@@ -150,10 +161,18 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
       }
 
       try {
-        const frameResponse = await fetch(frameUrl);
-        const frameBlob = await frameResponse.blob();
-        const apiResult = await submitLocalScan(frameBlob, allCandidates, forced);
+        const apiResult = visionReady
+          ? await submitVisionScan(frameBlob!, allCandidates, { x: 0.5, y: 0.5 })
+          : await submitLocalScan(frameBlob!, allCandidates, forced);
         if (cancelled) return;
+
+        const note =
+          visionReady &&
+          "visionNote" in apiResult &&
+          typeof apiResult.visionNote === "string"
+            ? apiResult.visionNote
+            : null;
+        setVisionNote(note);
 
         setSimulated(apiResult.simulated);
         setScanEngine(apiResult.engine ?? "local");
@@ -193,7 +212,7 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [phase, camera, allCandidates, forced]);
+  }, [phase, camera, allCandidates, forced, visionReady]);
 
   // Acierto -> abrir el recuerdo. En modo dev no navegamos: hay que leer el panel.
   useEffect(() => {
@@ -219,10 +238,11 @@ export function ScanExperience({ candidates, forced, debug = false }: ScanExperi
     setRankings([]);
     setScanKeypoints(null);
     setThresholds(null);
+    setVisionNote(null);
     setPhase("aiming");
   }
 
-  const noMatchHint = scanReasonMessage(
+  const noMatchHint = visionNote ?? scanReasonMessage(
     scanReason,
     allCandidates.length,
     topScore,

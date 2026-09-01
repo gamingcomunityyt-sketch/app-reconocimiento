@@ -12,20 +12,26 @@ export type CameraStatus =
   | "error";
 
 /**
- * Mismo limite que el nucleo de vision (`app.py`, `MAX_DIMENSION`).
- *
- * Reducir el fotograma aqui, en el navegador, es la parte de preprocesado en
- * cliente que decidio `MIGRATION_PLAN.md` §4.3: baja la latencia y el consumo
- * de datos moviles, y evita enviar imagenes que el servidor va a reescalar.
+ * Mismo limite que el nucleo de vision (`app.py`, `MAX_DIMENSION`) para registro.
+ * El escaneo V10.7 pide ~1800-2200 px si el JPEG sigue dentro del limite de Vercel.
  */
-const MAX_DIMENSION = 1000;
+const DEFAULT_MAX_DIMENSION = 1000;
+const SCAN_MAX_DIMENSION = 2000;
 const JPEG_QUALITY = 0.85;
+
+export interface CaptureOptions {
+  /** Lado largo maximo del JPEG capturado. */
+  maxDimension?: number;
+  jpegQuality?: number;
+}
 
 export interface Camera {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   status: CameraStatus;
   /** Devuelve una URL local del fotograma actual, ya reducido. */
-  captureFrame: () => Promise<string | null>;
+  captureFrame: (options?: CaptureOptions) => Promise<string | null>;
+  /** Igual que captureFrame pero devuelve el Blob (para APIs de vision). */
+  captureBlob: (options?: CaptureOptions) => Promise<Blob | null>;
 }
 
 export function useCamera(active: boolean): Camera {
@@ -98,13 +104,16 @@ export function useCamera(active: boolean): Camera {
     };
   }, [active]);
 
-  const captureFrame = useCallback(async (): Promise<string | null> => {
+  const captureBlob = useCallback(async (options?: CaptureOptions): Promise<Blob | null> => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return null;
 
+    const maxDimension = options?.maxDimension ?? DEFAULT_MAX_DIMENSION;
+    const jpegQuality = options?.jpegQuality ?? JPEG_QUALITY;
+
     const scale = Math.min(
       1,
-      MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight),
+      maxDimension / Math.max(video.videoWidth, video.videoHeight),
     );
     const width = Math.round(video.videoWidth * scale);
     const height = Math.round(video.videoHeight * scale);
@@ -117,20 +126,31 @@ export function useCamera(active: boolean): Camera {
     if (!context) return null;
     context.drawImage(video, 0, 0, width, height);
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY);
+    return new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", jpegQuality);
     });
-
-    return blob ? URL.createObjectURL(blob) : null;
   }, []);
+
+  const captureFrame = useCallback(
+    async (options?: CaptureOptions): Promise<string | null> => {
+      const blob = await captureBlob(options);
+      return blob ? URL.createObjectURL(blob) : null;
+    },
+    [captureBlob],
+  );
 
   // La identidad se mantiene estable para que quien la use en un efecto no lo
   // vuelva a disparar en cada render.
   return useMemo(
-    () => ({ videoRef, status, captureFrame }),
-    [status, captureFrame],
+    () => ({ videoRef, status, captureFrame, captureBlob }),
+    [status, captureFrame, captureBlob],
   );
 }
+
+export const CAMERA_CAPTURE = {
+  registration: { maxDimension: DEFAULT_MAX_DIMENSION } satisfies CaptureOptions,
+  scan: { maxDimension: SCAN_MAX_DIMENSION, jpegQuality: 0.88 } satisfies CaptureOptions,
+};
 
 function classifyError(error: unknown): CameraStatus {
   const name = error instanceof DOMException ? error.name : "";

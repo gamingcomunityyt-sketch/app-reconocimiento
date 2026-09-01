@@ -1,78 +1,119 @@
-# Publicar Recuerdos (sin abrir Cursor cada vez)
+# Publicar Recuerdos + escáner V10.7 (todo en Vercel)
 
-La app vive en internet en **Vercel**. Una vez publicada, cualquiera abre el
-enlace desde el movil o el PC. No hace falta arrancar nada en local.
+La web y el reconocimiento viven en **el mismo proyecto Vercel**.
+Misma URL: interfaz Next.js + motor Python en `/api/vision/*`.
 
-Para cuentas privadas y recuerdos solo tuyos, configura tambien Supabase:
-ver `web/SUPABASE_SETUP.md`.
+Root Directory del proyecto en Vercel: **`web`**.
 
-## 1. Publicar la web (Next.js)
+---
 
-Desde la carpeta `web`:
+## 1. Qué hay que tener en GitHub (carpeta `web/`)
 
-```bash
-npx vercel login
-npx vercel --prod
+```text
+web/
+  api/index.py              ← entrada FastAPI
+  api/requirements.txt
+  vision/engine.py          ← motor V10.7
+  vision/router.py
+  vision/__init__.py
+  requirements.txt
+  .python-version
+  vercel.json               ← timeout + rewrite /api/vision → Python
+  src/...                   ← tu Next.js (ya conectado al escáner)
 ```
 
-Al terminar, Vercel muestra una URL tipo `https://….vercel.app`. Esa es la que
-puedes compartir.
+No hace falta Render para el escáner V10.7.
 
-Para volver a publicar despues de cambios:
+---
 
-```bash
-npx vercel --prod
+## 2. Subir y desplegar
+
+1. Sube el repo a GitHub (incluye `web/api` y `web/vision`).
+2. En Vercel → Project → Settings → General:
+   - **Root Directory** = `web`
+3. Redeploy (o `npx vercel --prod` desde `web/`).
+
+---
+
+## 3. Variable importante (Supabase)
+
+Vercel → Settings → Environment Variables:
+
+```text
+VISION_ALLOWED_IMAGE_HOSTS=TU-PROYECTO.supabase.co
 ```
 
-## 2. Reconocimiento real (necesario para escanear)
+Sin eso, el motor puede rechazar descargar las fotos de referencia.
 
-Sin este paso, la interfaz funciona (biblioteca, crear, editar, cuentas) pero el
-escaneo muestra *"El motor de reconocimiento no esta activo"*.
+(Opcional) Si usas dominio propio:
 
-### A. Desplegar el servicio Python en Render
-
-1. Sube el repositorio a GitHub (si aun no lo has hecho).
-2. Entra en [Render](https://render.com) → **New** → **Blueprint**.
-3. Conecta el repositorio. Render detectara `render.yaml` en la raiz.
-4. Tras el deploy, anota:
-   - **URL publica** (ej. `https://recuerdos-recognition.onrender.com`)
-   - **RECOGNITION_SERVICE_TOKEN** (Render lo genera; copialo en Environment)
-
-Comprueba: `https://TU-SERVICIO.onrender.com/health` → `{"status":"ok"}`.
-
-> En el plan free, la primera peticion tras inactividad puede tardar ~30 s.
-> La app llama a `/api/scan/warmup` al abrir el escaner para reducir esa espera.
-
-### B. Configurar Vercel
-
-Manual — Vercel → Project → Settings → Environment Variables:
-
-```
-RECOGNITION_SERVICE_URL=https://TU-SERVICIO.onrender.com
-RECOGNITION_SERVICE_TOKEN=el-mismo-secreto-que-en-render
+```text
+VISION_ALLOWED_ORIGINS=https://tu-dominio.com
 ```
 
-Automatico — desde la raiz del repo:
+Las variables de Supabase (`NEXT_PUBLIC_SUPABASE_URL`, etc.) se quedan como ya las tienes.
+
+---
+
+## 4. Comprobar que está unido
+
+Tras el deploy:
+
+1. `https://TU-APP.vercel.app/api/vision/health`  
+   Debe devolver algo como `{ "ok": true, "engine": "10.7-web", ... }`.
+
+2. `https://TU-APP.vercel.app/api/scan/health`  
+   Debe indicar modo `vision_v10` si el motor responde.
+
+3. En la app: crea un recuerdo con objeto vinculado → **Escanear** → apuntar → abre el recuerdo.
+
+Si `/api/vision/health` falla, la app sigue usando el escáner local del navegador (respaldo).
+
+---
+
+## 5. Probar en el PC (opcional)
+
+Terminal 1 — motor:
 
 ```powershell
-.\scripts\setup-scan-production.ps1 -RenderUrl "https://recuerdos-recognition.onrender.com" -Token "tu-token"
+cd web
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn api.index:app --reload --port 8000
 ```
 
-Luego **Redeploy** en Vercel.
+En `.env.local`:
 
-### C. Comprobar
-
-Abre `https://TU-APP.vercel.app/api/scan/health`. Deberia devolver:
-
-```json
-{"configured":true,"reachable":true,"status":200}
+```text
+VISION_API_URL=http://127.0.0.1:8000
 ```
 
-Si `configured: false`, faltan variables en Vercel. Si `reachable: false`, Render
-no responde o el token no coincide.
+Terminal 2 — web:
+
+```powershell
+cd web
+npm run dev
+```
+
+Abre `http://localhost:3000/api/vision/health`.
+
+---
+
+## Cómo queda el flujo
+
+| Acción | Qué pasa |
+| --- | --- |
+| Entrar en Escanear | La web comprueba `/api/vision/health` |
+| Motor OK | Envía la foto + retícula + URLs de tus objetos a `/api/vision/scan` |
+| MATCH | Abre el recuerdo del **objetivo** (bajo la retícula) |
+| Secundarios | Se reconocen pero **no** abren solo |
+| Motor caído | Usa el escáner local integrado |
+
+---
 
 ## Notas
 
-- Con Supabase: los recuerdos viven en tu cuenta y solo los ven invitados.
-- Sin Supabase: siguen en IndexedDB del navegador (demo local).
-- La camara en el movil requiere HTTPS: Vercel ya lo da.
+- La cámara en el móvil necesita HTTPS: Vercel ya lo da.
+- Con Supabase, las imágenes de objeto deben ser URLs `https://...supabase.co/...` (firmadas).
+- El laboratorio Streamlit no hace falta subirlo.

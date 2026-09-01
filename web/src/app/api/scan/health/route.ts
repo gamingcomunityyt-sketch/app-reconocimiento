@@ -8,13 +8,27 @@ export const runtime = "nodejs";
  * Local siempre esta disponible. Si hay servicio Python configurado,
  * tambien informa si responde (reconocimiento de lujo).
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const origin = new URL(request.url).origin;
+  let vision: { reachable: boolean; status?: number } = { reachable: false };
+
+  try {
+    const response = await fetch(`${origin}/api/vision/health`, {
+      signal: AbortSignal.timeout(4_000),
+      cache: "no-store",
+    });
+    vision = { reachable: response.ok, status: response.status };
+  } catch {
+    vision = { reachable: false };
+  }
+
   const env = recognitionEnv();
   if (!env) {
     return NextResponse.json({
       configured: true,
       reachable: true,
-      mode: "local",
+      mode: vision.reachable ? "vision_v10" : "local",
+      vision,
       python: { configured: false, reachable: false },
     });
   }
@@ -29,7 +43,8 @@ export async function GET() {
     return NextResponse.json({
       configured: true,
       reachable: true,
-      mode: pythonOk ? "python" : "local_fallback",
+      mode: vision.reachable ? "vision_v10" : pythonOk ? "python" : "local_fallback",
+      vision,
       python: { configured: true, reachable: pythonOk, status: response.status },
     });
   } catch (error) {
@@ -37,7 +52,8 @@ export async function GET() {
     return NextResponse.json({
       configured: true,
       reachable: true,
-      mode: "local_fallback",
+      mode: vision.reachable ? "vision_v10" : "local_fallback",
+      vision,
       python: { configured: true, reachable: false, detail: message },
     });
   }
